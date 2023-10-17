@@ -77,7 +77,7 @@ if [ ! -e "$output" ]; then
 fi
 
 # if infojson is true then put the name, author, and date into file.json
-if [ “$infojson” ]; then
+if [ "$infojson" = "1" ]; then
     name=$(yq e '.name' "$input")
     author=$(yq e '.author' "$input")
     date=$(yq e '.date' "$input")
@@ -85,3 +85,9 @@ if [ “$infojson” ]; then
     # extract info into info.json
     echo "{\n\t\"name\": \"$name\",\n\t\"author\": \"$author\",\n\t\"date\": \"$date\"\n}" > "$output/info.json"
 fi
+
+# if -c then put the file header into files.tsv/csv
+if [ "$slice" ]; then
+    echo "filename${slice}size${slice}md5${slice}sha1$\n" > "$output/files.${slice_type}"
+fi
+
