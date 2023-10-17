@@ -2,17 +2,19 @@
 
 # Define the help message
 help_message="\
-hw2.sh -i INPUT -o OUTPUT [-c csv|tsv] [-j]\n\n\
-Available Options:\n\n\
--i: Input file to be decoded\n\
--o: Output directory\n\
--c csv|tsv: Output files.[ct]sv\n\
--j: Output info.json\n"
+hw2.sh -i INPUT -o OUTPUT [-c csv|tsv] [-j]
 
-# echo help message if no arguments passed
+Available Options:
+
+-i: Input file to be decoded
+-o: Output directory
+-c csv|tsv: Output files.[ct]sv
+-j: Output info.json"
+
+# echo help message if less than 4 arguments passed
 # $# -> number of arguments passed
-if [ $# -eq 0 ]; then
-    >&2 echo $help_message
+if [ $# -lt 4 ]; then
+    >&2 echo "$help_message"
     exit 255
 fi
 
@@ -25,10 +27,18 @@ while getopts i:o:c:j op 2>/dev/null; do
     case $op in
         i)
         # Set the input file
+            if [ ! "$OPTARG" ]; then
+                >&2 echo "$help_message"
+                exit 255
+            fi
             input=$OPTARG
             ;;
         o)
         # Set the output directory
+            if [ ! "$OPTARG" ]; then
+                >&2 echo "$help_message"
+                exit 255
+            fi
             output=$OPTARG
             ;;
         c)
@@ -48,8 +58,11 @@ while getopts i:o:c:j op 2>/dev/null; do
         *)
             # Output help message for invalid options
             # >&2 -> redirects the echo output to stderr and stdout
-            >&2 echo $help_message
+            >&2 echo "$help_message"
             exit 255
     esac
 done
 
+if [ "${input%\.hw2}.hw2" != "$input" ]; then
+    >&2 echo "$help_message"
+fi
