@@ -63,6 +63,25 @@ while getopts i:o:c:j op 2>/dev/null; do
     esac
 done
 
+# if input doesn't end with .hw2 then echo help message
 if [ "${input%\.hw2}.hw2" != "$input" ]; then
     >&2 echo "$help_message"
+    exit 255
+fi
+
+# if output directory doesn't exist, make it
+# -e -> exists
+if [ ! -e "$output" ]; then
+    # -p -> if the paren't directory doesn't exist in dir/subdir, make dir first then subdir
+    mkdir -p "$output"
+fi
+
+# if infojson is true then put the name, author, and date into file.json
+if [ “$infojson” ]; then
+    name=$(yq e '.name' "$input")
+    author=$(yq e '.author' "$input")
+    date=$(yq e '.date' "$input")
+    date=$(date -r "$date" -Iseconds)
+    # extract info into info.json
+    echo "{\n\t\"name\": \"$name\",\n\t\"author\": \"$author\",\n\t\"date\": \"$date\"\n}" > "$output/info.json"
 fi
