@@ -48,7 +48,7 @@ while getopts i:o:c:j op 2>/dev/null; do
                 slice=',' 
             fi
             if [ "$slice_type" = "tsv" ]; then 
-                slice=$'\t'
+                slice='\t'
             fi
             ;;
         j)
@@ -83,11 +83,13 @@ if [ "$infojson" = "1" ]; then
     date=$(yq e '.date' "$input")
     date=$(date -r "$date" -Iseconds)
     # extract info into info.json
-    echo "{\n\t\"name\": \"$name\",\n\t\"author\": \"$author\",\n\t\"date\": \"$date\"\n}" > "$output/info.json"
+    # echo "{\n\t\"name\": \"$name\",\n\t\"author\": \"$author\",\n\t\"date\": \"$date\"\n}" > "$output/info.json"
+    printf "{\n\t\"name\": \"%s\",\n\t\"author\": \"%s\",\n\t\"date\": \"%s\"\n}" "$name" "$author" "$date" > "$output/info.json"
 fi
 
 # if -c then put the file header into files.tsv/csv
 if [ "$slice" ]; then
-    echo "filename${slice}size${slice}md5${slice}sha1$\n" > "$output/files.${slice_type}"
+    # echo "filename${slice}size${slice}md5${slice}sha1$" > "$output/files.${slice_type}"
+    printf "filename%ssize%smd5%ssha1\n" "$slice" "$slice" "$slice" > "$output/files.${slice_type}"
 fi
 
