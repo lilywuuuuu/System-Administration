@@ -68,7 +68,7 @@ if [ "${input%\.hw2}.hw2" != "$input" ]; then
     >&2 echo "$help_message"
     exit 255
 fi
-
+ 
 # if output directory doesn't exist, make it
 # -e -> exists
 if [ ! -e "$output" ]; then
@@ -78,13 +78,16 @@ fi
 
 # if infojson is true then put the name, author, and date into file.json
 if [ "$infojson" = "1" ]; then
-    name=$(yq e '.name' "$input")
-    author=$(yq e '.author' "$input")
-    date=$(yq e '.date' "$input")
+    name=$(yq '.name' "$input")
+    author=$(yq '.author' "$input")
+    date=$(yq '.date' "$input")
     date=$(date -r "$date" -Iseconds)
     # extract info into info.json
     # echo "{\n\t\"name\": \"$name\",\n\t\"author\": \"$author\",\n\t\"date\": \"$date\"\n}" > "$output/info.json"
-    printf "{\n\t\"name\": \"%s\",\n\t\"author\": \"%s\",\n\t\"date\": \"%s\"\n}" "$name" "$author" "$date" > "$output/info.json"
+    # printf "{\n\t\"name\": \"%s\",\n\t\"author\": \"%s\",\n\t\"date\": \"%s\"\n}" "$name" "$author" "$date" > "$output/info.json"
+    printf "{" > "$output/info.json"
+    yq eval -n ".name = \"$name\" | .author = \"$author\" | .date = \"$date\"" >> "$output/info.json"
+    printf "}" >> "$output/info.json"
 fi
 
 # if -c then put the file header into files.tsv/csv
