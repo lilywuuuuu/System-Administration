@@ -88,20 +88,45 @@ elif [ "$slice_type" = "tsv" ]; then
 fi
 
 # remember to use '' and not "" because it fucks up the "sha-1"
-yq -r '.files[] | .name + " " + .type + " " + .data + " " + .hash.md5 + " " + .hash.["sha-1"]' "$input" | 
-while IFS= read -r info; do
-    name=$(echo "$info" | awk '{print $1}')
-    # type=$(echo "$info" | awk '{print $2}')
-    data=$(echo "$info" | awk '{print $3}')
-    md5=$(echo "$info" | awk '{print $4}')
-    sha1=$(echo "$info" | awk '{print $5}')
-    data_decoded=$(echo "$data" | base64 -d)
-    size=${#data_decoded}
-    size=$((size + 1))
+# parse through the yaml file using yq and extract data
+invalid_files=0
+invalid_files=$(
+    yq -r '.files[] | .name + " " + .type + " " + .data + " " + .hash.md5 + " " + .hash.["sha-1"]' "$input" | 
+    while IFS= read -r info; do
+        # separate info using awk 
+        name=$(echo "$info" | awk '{print $1}')
+        # type=$(echo "$info" | awk '{print $2}')
+        data=$(echo "$info" | awk '{print $3}')
+        md5=$(echo "$info" | awk '{print $4}')
+        sha1=$(echo "$info" | awk '{print $5}')
+        data_decoded=$(echo "$data" | base64 -d)
 
-    if [ "$slice_type" = "csv" ]; then
-        printf "%s,%s,%s,%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.csv"
-    elif [ "$slice_type" = "tsv" ]; then
-        printf "%s\t%s\t%s\t%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.tsv"
-    fi
-done
+        # check data's size
+        # it's always less by 1 for some reason so add it back
+        size=${#data_decoded}
+        size=$((size + 1))
+
+        # put decoded data into the right folder/file
+        file_path="$output/$name"
+        mkdir -p "$(dirname "$file_path")"
+        printf "%s\n" "$data_decoded" > "$file_path"
+
+        # take care of csv/tsv file if needed
+        if [ "$slice_type" = "csv" ]; then
+            printf "%s,%s,%s,%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.csv"
+        elif [ "$slice_type" = "tsv" ]; then
+            printf "%s\t%s\t%s\t%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.tsv"
+        fi
+
+        # take care of checksum
+
+        if [ "$md5" != "$(md5sum "$file_path")" ] || [ "$sha1" != "$(sha1sum "$file_path")" ]; then
+            invalid_files=$((invalid_files + 1))
+            # echo $invalid_files
+            # echo $file_path
+        fi
+    done
+)
+
+echo "$invalid_files"
+exit $invalid_files
