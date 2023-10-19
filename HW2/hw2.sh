@@ -42,14 +42,8 @@ while getopts i:o:c:j op 2>/dev/null; do
             output=$OPTARG
             ;;
         c)
-        # Set the output format (csv or tsv)
+        # slice_type = csv or tsv
             slice_type=$OPTARG
-            if [ "$slice_type" = "csv" ]; then 
-                slice=',' 
-            fi
-            if [ "$slice_type" = "tsv" ]; then 
-                slice='\t'
-            fi
             ;;
         j)
         # Enable output of info.json
@@ -87,7 +81,27 @@ if [ "$infojson" = "1" ]; then
 fi
 
 # if -c then put the file header into files.tsv/csv
-if [ "$slice" ]; then
-    printf "filename${slice}size${slice}md5${slice}sha1\n" > "$output/files.${slice_type}"
+if [ "$slice_type" = "csv" ]; then
+    printf "filename,size,md5,sha1\n" > "$output/files.csv"
+elif [ "$slice_type" = "tsv" ]; then 
+    printf "filename\tsize\tmd5\tsha1\n" > "$output/files.tsv"
 fi
 
+# remember to use '' and not "" because it fucks up the "sha-1"
+yq -r '.files[] | .name + " " + .type + " " + .data + " " + .hash.md5 + " " + .hash.["sha-1"]' "$input" | 
+while IFS= read -r info; do
+    name=$(echo "$info" | awk '{print $1}')
+    # type=$(echo "$info" | awk '{print $2}')
+    data=$(echo "$info" | awk '{print $3}')
+    md5=$(echo "$info" | awk '{print $4}')
+    sha1=$(echo "$info" | awk '{print $5}')
+    data_decoded=$(echo "$data" | base64 -d)
+    size=${#data_decoded}
+    size=$((size + 1))
+
+    if [ "$slice_type" = "csv" ]; then
+        printf "%s,%s,%s,%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.csv"
+    elif [ "$slice_type" = "tsv" ]; then
+        printf "%s\t%s\t%s\t%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.tsv"
+    fi
+done
