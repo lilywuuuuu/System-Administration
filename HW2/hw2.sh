@@ -44,6 +44,7 @@ while getopts i:o:c:j op 2>/dev/null; do
         c)
         # slice_type = csv or tsv
             slice_type=$OPTARG
+            slice=1
             ;;
         j)
         # Enable output of info.json
@@ -89,44 +90,49 @@ fi
 
 # remember to use '' and not "" because it fucks up the "sha-1"
 # parse through the yaml file using yq and extract data
+tmp_file=$(mktemp)
+yq -r '.files[] | .name + " " + .type + " " + .data + " " + .hash.md5 + " " + .hash.["sha-1"]' "$input" > "$tmp_file"
 invalid_files=0
-invalid_files=$(
-    yq -r '.files[] | .name + " " + .type + " " + .data + " " + .hash.md5 + " " + .hash.["sha-1"]' "$input" | 
-    while IFS= read -r info; do
-        # separate info using awk 
-        name=$(echo "$info" | awk '{print $1}')
-        # type=$(echo "$info" | awk '{print $2}')
-        data=$(echo "$info" | awk '{print $3}')
-        md5=$(echo "$info" | awk '{print $4}')
-        sha1=$(echo "$info" | awk '{print $5}')
-        data_decoded=$(echo "$data" | base64 -d)
+while IFS= read -r info; do
+    # separate info using awk 
+    name=$(echo "$info" | awk '{print $1}')
+    type=$(echo "$info" | awk '{print $2}')
+    data=$(echo "$info" | awk '{print $3}')
+    md5=$(echo "$info" | awk '{print $4}')
+    sha1=$(echo "$info" | awk '{print $5}')
+    data_decoded=$(echo "$data" | base64 -d)
 
-        # check data's size
-        # it's always less by 1 for some reason so add it back
-        size=${#data_decoded}
-        size=$((size + 1))
+    # check data's size
+    # it's always less by 1 for some reason so add it back
+    size=${#data_decoded}
+    size=$((size + 1))
 
-        # put decoded data into the right folder/file
-        file_path="$output/$name"
-        mkdir -p "$(dirname "$file_path")"
-        printf "%s\n" "$data_decoded" > "$file_path"
+    # put decoded data into the right folder/file
+    file_path="$output/$name"
+    mkdir -p "$(dirname "$file_path")"
+    printf "%s\n" "$data_decoded" > "$file_path"
 
-        # take care of csv/tsv file if needed
-        if [ "$slice_type" = "csv" ]; then
-            printf "%s,%s,%s,%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.csv"
-        elif [ "$slice_type" = "tsv" ]; then
-            printf "%s\t%s\t%s\t%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.tsv"
-        fi
+    # take care of csv/tsv file if needed
+    if [ "$slice_type" = "csv" ]; then
+        printf "%s,%s,%s,%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.csv"
+    elif [ "$slice_type" = "tsv" ]; then
+        printf "%s\t%s\t%s\t%s\n" "$name" "$size" "$md5" "$sha1" >> "$output/files.tsv"
+    fi
 
-        # take care of checksum
+    # take care of checksum
+    md5_sum=$(md5sum "$file_path" | awk '{print $1}')
+    sha1_sum=$(sha1sum "$file_path" | awk '{print $1}')
+    if [ "$md5" != "$md5_sum" ] || [ "$sha1" != "$sha1_sum" ]; then
+        invalid_files=$((invalid_files + 1))
+    fi
 
-        if [ "$md5" != "$(md5sum "$file_path")" ] || [ "$sha1" != "$(sha1sum "$file_path")" ]; then
-            invalid_files=$((invalid_files + 1))
-            # echo $invalid_files
-            # echo $file_path
-        fi
-    done
-)
+    # recursive decoding
+    if [ "$type" = "hw2" ] && [ "$infojson" != "1" ] && [ "$slice" != "1" ]; then
+        ./hw2.sh -i "$file_path" -o "$output"
+    fi
 
-echo "$invalid_files"
+done < "$tmp_file"
+rm "$tmp_file"
+
+# echo "$invalid_files"
 exit $invalid_files
