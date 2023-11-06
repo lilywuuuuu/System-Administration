@@ -1,0 +1,79 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2709
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;\f1\fmodern\fcharset0 Courier;\f2\fnil\fcharset0 Monaco;
+}
+{\colortbl;\red255\green255\blue255;\red14\green106\blue1;\red255\green255\blue255;\red16\green16\blue16;
+\red244\green244\blue244;\red16\green16\blue16;\red244\green244\blue244;\red14\green106\blue1;\red14\green105\blue1;
+\red255\green255\blue255;\red191\green81\blue5;\red251\green249\blue236;\red0\green0\blue0;\red229\green229\blue229;
+}
+{\*\expandedcolortbl;;\cssrgb\c0\c47843\c0;\cssrgb\c100000\c100000\c100000;\cssrgb\c7843\c7843\c7843;
+\cssrgb\c96471\c96471\c96471;\cssrgb\c7843\c7843\c7843;\cssrgb\c96471\c96471\c96471;\cssrgb\c0\c47843\c0;\cssrgb\c0\c47712\c0;
+\cssrgb\c100000\c100000\c100000\c0;\cssrgb\c80000\c40000\c0;\cssrgb\c98824\c98039\c94118;\cssrgb\c0\c0\c0;\cssrgb\c91857\c91857\c91857;
+}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+{\field{\*\fldinst{HYPERLINK "https://forums.freebsd.org/threads/openssh-and-sftp-logging.4349/?fbclid=IwAR1GK2xwgXpWiw76Z9OOORXpXojtArcct4QAF6KU-Jz92Zmw0FB5vwb82U4"}}{\fldrslt 
+\f0\fs24 \cf0 \uc0\u21443 \u32771 \u32178 \u31449 1}}
+\f0\fs24 \
+\
+In 
+\f1\fs32 \cf2 \cb3 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /etc/ssh/sshd_config\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf4 \cb5 \strokec4 Subsystem       sftp    internal-sftp -f LOCAL0 -l VERBOSE\
+\
+Match group SFTP-USER \
+        ChrootDirectory /ChrootDir/\
+        ForceCommand    internal-sftp -f LOCAL0 -l VERBOSE\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 \cb1 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 In 
+\f1\fs32 \cf2 \cb3 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /etc/syslog.conf\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf6 \cb7 \outl0\strokewidth0 local0.* 		/var/log/sftp.log\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+{\field{\*\fldinst{HYPERLINK "https://www.the-art-of-web.com/system/sftp-logging-chroot/?fbclid=IwAR3mF_DgxenSagvNLDwQVity5yJTJt0_pPmT__KVyAV6k3LxJbN2iF4L1sY"}}{\fldrslt 
+\f0\fs24 \cf0 \cb1 \kerning1\expnd0\expndtw0 \uc0\u21443 \u32771 \u32178 \u31449 2}}
+\f0\fs24 \cf0 \cb1 \kerning1\expnd0\expndtw0 \
+\
+Create a /dev directory under each sftp user\'92s home directory\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf6 \cb7 \expnd0\expndtw0\kerning0
+mkdir -m2755 dev\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 \cb1 \kerning1\expnd0\expndtw0 Create a new file at 
+\f1\fs32 \cf8 \cb3 \expnd0\expndtw0\kerning0
+/etc/syslog.d/sftp.conf\cf9 \cb10  
+\f0\fs24 \cf0 \cb1 \kerning1\expnd0\expndtw0 and write
+\f1\fs32 \cf8 \cb3 \expnd0\expndtw0\kerning0
+\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf11 \cb1 \outl0\strokewidth0 \strokec11 # create additional sockets for the sftp chrooted users\cf0 \cb12 \strokec13 \
+\cb14 \strokec13 module(load="imuxsock")\cb12 \strokec13 \
+input(type="imuxsock" Socket="\cf11 \cb1 \strokec11 /path/to/somedirectory\cf0 \cb12 \strokec13 /dev/log" CreatePath="on")\
+input(type="imuxsock" Socket="\cf11 \cb1 \strokec11 /path/to/anotherdirectory\cf0 \cb12 \strokec13 /dev/log" CreatePath="on")\
+\
+\cf11 \cb1 \strokec11 # log internal-sftp activity to sftp.log\cf0 \cb12 \strokec13 \
+if $programname == 'internal-sftp' then /var/log/sftp.log\
+& stop\
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 \cb1 \kerning1\expnd0\expndtw0 \outl0\strokewidth0  new Remember to restart syslog\
+\
+\pard\pardeftab720\partightenfactor0
+
+\f2\fs26 \cf6 \cb7 \expnd0\expndtw0\kerning0
+sudo service syslogd restart}
