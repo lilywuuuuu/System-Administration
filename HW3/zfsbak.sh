@@ -16,16 +16,6 @@ function datetime() {
     date '+%Y-%m-%d-%H:%M:%S'
 }
 
-# function zfs_snap() {
-#     echo "Snap $1"
-#     zfs snapshot "$1"
-# }
-
-# function zfs_destroy() {
-#     echo "Destroy $1"
-#     zfs destroy "$1"
-# }
-
 function zfsbak_create() {
     dataset="$1"
     rotation=12
