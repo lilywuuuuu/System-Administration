@@ -16,14 +16,35 @@ function datetime() {
     date '+%Y-%m-%d-%H:%M:%S'
 }
 
-function zfs_snap() {
-    echo "Snap $1"
-    zfs snapshot "$1"
-}
+# function zfs_snap() {
+#     echo "Snap $1"
+#     zfs snapshot "$1"
+# }
 
-function zfs_destroy() {
-    echo "Destroy $1"
-    zfs destroy "$1"
+# function zfs_destroy() {
+#     echo "Destroy $1"
+#     zfs destroy "$1"
+# }
+
+function zfsbak_create() {
+    dataset="$1"
+    rotation=12
+    if [ -n "$2" ]; then
+        rotation=$2
+    fi
+    # get all recursive snaps with /dataset in the name
+    dt=$(datetime)
+    echo "Snap ${dataset}@zfsbak_${dt}"
+    for snaps in $(zfs list -H -r $dataset | awk '{ print $1 }'); do
+        zfs snapshot "${snaps}@zfsbak_${dt}"
+        # check if total number of datasets is over rotation limit
+        for snap in $(zfs_list "$snaps" | awk '{ print $2 }' | tail -r | tail -n "+$((rotation+1))" | tail -r); do
+            if [[ "$snap" == ${dataset}@* ]]; then
+                echo "Destroy $snap"
+            fi
+            zfs destroy "$snap"
+        done
+    done 
 }
 
 function parse_dataset_id() {
@@ -48,14 +69,32 @@ function zfs_list() {
     # -r -> recursively show datasets inside a dataset if there's any
     # -t snapshot -> only include snapshots 
     # $1 -> name of the snapshot
-    snapshots=$(zfs list -H -o name -r -t snapshot "$1") 
+    snapshots=$(zfs list -H -o name -r -t snapshot "$1")
     if [ -z "$snapshots" ]; then
         return # return if there's no snapshots
     fi
+    # turn snapshots into array
+    readarray -t snapshots_array <<< "$snapshots"
     # sort snapshots based on their creation time
     # using '@' as the field separator
-    sorted_snapshots=$(echo "$snapshots" | sort -t '@' -k 2)
+    # for recursive listing
+    for parent_snap in $snapshots; do
+        parent_name=${parent_snap%%@*}
+        parent_time=${parent_snap#*@}
+        i=0
+        for child_snap in $snapshots; do
+            child_name=${child_snap%%@*}
+            child_time=${child_snap#*@}
+            if [[ "${child_name}" == "${parent_name}"/* && "${child_time}" == "${parent_time}" ]]; then
+                unset snapshots_array[$i]
+            fi
+            ((i++))
+        done
+    done
+    # turn snapshot back into list
+    snapshots=$(printf "%s\n" "${snapshots_array[@]}")
     # add a line number (NR) before each output
+    sorted_snapshots=$(echo "$snapshots" | sort -t '@' -k 2)
     numbered_snapshots=$(echo "$sorted_snapshots" | awk '{print NR "\t" $0}')
     # only output the snapshot that starts with $2 (ID) if there is one
     filtered_snapshots=$(echo "$numbered_snapshots" | grep "^$2")
@@ -79,33 +118,36 @@ function zfsbak_list() {
     fi
 }
 
-function zfsbak_create() {
-    dataset="$1"
-    rotation=12
-    if [ -n "$2" ]; then
-        rotation=$2
-    fi
-    zfs_snap "${dataset}@zfsbak_$(datetime)"
-    # check if total number of datasets is over rotation limit
-    for snap in $(zfs_list "$dataset" | awk '{ print $2 }' | tail -r | tail -n "+$((rotation+1))" | tail -r); do
-        zfs_destroy "$snap"
-    done
-}
-
 function zfsbak_delete() {
     parse_dataset_id "$@"
     snaps=()
     # if there are ids
     for id in ${ids[@]}; do
-        snaps+=($(zfs_list "$dataset" "$id" | awk '{ print $2 }'))
+        if [ "$dataset" == "mypool" ]; then
+            snaps+=($(zfs_list "$dataset" "$id" | awk '{ print $2 }'))
+        else
+            for snapshots in $(zfs list -H -r $dataset | awk '{ print $1 }'); do 
+                for snap in $(zfs_list "$snapshots" "$id" | awk '{ print $2 }'); do
+                    snaps+=($snap)
+                done
+            done
+        fi
     done
     for snap in ${snaps[@]}; do
-        zfs_destroy "$snap"
+        if [[ "$snap" == ${dataset}@* || "$dataset" == "mypool" ]]; then
+            echo Destroy $snap
+        fi
+        zfs destroy "$snap"
     done
     # if there's no id
     if [ ${#ids[@]} -eq 0 ]; then
-        for snap in $(zfs_list "$dataset" "" | awk '{ print $2 }'); do
-            zfs_destroy "$snap"
+        for snaps in $(zfs list -H -r $dataset | awk '{ print $1 }'); do 
+            for snap in $(zfs_list "$snaps" "" | awk '{ print $2 }'); do
+                if [[ "$snap" == ${dataset}@* || "$dataset" == "mypool" ]]; then
+                    echo Destroy $snap
+                fi
+                zfs destroy "$snap"
+            done
         done
     fi
 }
@@ -130,18 +172,46 @@ function zfsbak_export() {
 }
 
 function zfsbak_import() {
-    filename="${1?'filename'}"
-    dataset="${2?'dataset'}"
-    # cp "$filename" /tmp
+    if [ -n "$1" ]; then
+        filename="$1"
+    else
+        echo "Filename is required." >&2
+        exit 1
+    fi
+    if [ -n "$2" ]; then
+        dataset="$2"
+    else
+        echo "Dataset is required." >&2
+        exit 1
+    fi
     echo "Import $filename to $dataset"
     zstd -qcd "$filename" | zfs receive "$dataset@$(datetime)"
+    snapshots=$(zfs list -H -o name -r "$dataset")
+    if [ $(echo "$snapshots" | wc -l ) -eq 1 ]; then
+        directories=$(ls /home/sftp/${dataset#*/})
+        for directory in $directories; do
+            zfs create $dataset/$directory
+        done
+    fi
 }
 
 case "$1" in
-    -l|--list)   shift; zfsbak_list   "$@" ;;
-    -d|--delete) shift; zfsbak_delete "$@" ;;
-    -e|--export) shift; zfsbak_export "$@" ;;
-    -i|--import) shift; zfsbak_import "$@" ;;
+    -l|--list)   
+        shift
+        zfsbak_list "$@" 
+        ;;
+    -d|--delete) 
+        shift 
+        zfsbak_delete "$@" 
+        ;;
+    -e|--export) 
+        shift 
+        zfsbak_export "$@" 
+        ;;
+    -i|--import) 
+        shift 
+        zfsbak_import "$@" 
+        ;;
     *)
         if [ $# == 0 ]; then
             help
