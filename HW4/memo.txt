@@ -1,0 +1,4 @@
+Configure Virtual Host:
+
+sudo vim /usr/local/etc/nginx/nginx.conf
+
